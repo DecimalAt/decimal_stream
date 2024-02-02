@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chat Stream</title>
+    <style>
+      /* Add some basic styling */
+      #chat {
+        height: 500px;
+        overflow: auto;
+        border: 1px solid #ccc;
+        padding: 10px;
+        margin: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="chat"></div>
+    <script>
+      const tokenName = "/* token_name */";
+      const chat = document.getElementById("chat");
+
+      // Create an EventSource
+      const eventSource = new EventSource(`/feed/${tokenName}`);
+
+      eventSource.onmessage = function (event) {
+        // Append new data to the chat div
+        const newLine = document.createElement("p");
+        newLine.textContent = event.data;
+        chat.appendChild(newLine);
+
+        // Auto-scroll to the bottom
+        chat.scrollTop = chat.scrollHeight;
+      };
+
+      eventSource.onerror = function () {
+        console.error("EventSource failed.");
+        // Close the connection
+        eventSource.close();
+      };
+    </script>
+  </body>
+</html>
