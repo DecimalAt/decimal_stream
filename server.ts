@@ -14,8 +14,8 @@ const dataStream = new DataStream();
 
 const port = 3000;
 
-const rpcUrl = "https://rpc.gnosis.gateway.fm";
-const wsUrl = "wss://rpc.gnosischain.com/wss";
+const rpcUrl = "https://rpc.ankr.com/gnosis";
+// const wsUrl = "wss://rpc.gnosischain.com/wss";
 
 const jobManagerContractAddress = "0x605eB302826b11Ff6307685B36A3198024BCa0A9";
 
@@ -25,30 +25,30 @@ const jobManager = JobManager__factory.connect(
   provider,
 );
 
-const providerWs = new ethers.WebSocketProvider(wsUrl);
-const jobManagerWs = JobManager__factory.connect(
-  jobManagerContractAddress,
-  providerWs,
-);
+// const providerWs = new ethers.WebSocketProvider(wsUrl);
+// const jobManagerWs = JobManager__factory.connect(
+//   jobManagerContractAddress,
+//   providerWs,
+// );
 
-jobManagerWs.on(
-  jobManager.filters.ExecutionComplete,
-  async (jobId, executionId, _, executeEvent) => {
-    console.log({ jobId, executionId });
+// jobManagerWs.on(
+//   jobManager.filters.ExecutionComplete,
+//   async (jobId, executionId, _, executeEvent) => {
+//     console.log({ jobId, executionId });
 
-    const jobIdNumber = parseInt(jobId.toString());
-    const tokenNameFromId = tokenFeedManager.getTokenNameById(jobIdNumber);
-    if (tokenNameFromId) {
-      const executionData = await jobManager.exeuctionData(jobId, executionId);
-      const blockNumber = (executeEvent as any)?.log?.blockNumber;
-      const transactionHash = (executeEvent as any)?.log?.transactionHash;
-      const priceToDisplay = new BigNumber(executionData).toFixed(0);
+//     const jobIdNumber = parseInt(jobId.toString());
+//     const tokenNameFromId = tokenFeedManager.getTokenNameById(jobIdNumber);
+//     if (tokenNameFromId) {
+//       const executionData = await jobManager.exeuctionData(jobId, executionId);
+//       const blockNumber = (executeEvent as any)?.log?.blockNumber;
+//       const transactionHash = (executeEvent as any)?.log?.transactionHash;
+//       const priceToDisplay = new BigNumber(executionData).toFixed(0);
 
-      const data = `BlockNumber: ${blockNumber} , TransactionHash: ${transactionHash} , Exec No: ${executionId}, Price: ${priceToDisplay}`;
-      dataStream.updateData(jobIdNumber, tokenNameFromId, data);
-    }
-  },
-);
+//       const data = `BlockNumber: ${blockNumber} , TransactionHash: ${transactionHash} , Exec No: ${executionId}, Price: ${priceToDisplay}`;
+//       dataStream.updateData(jobIdNumber, tokenNameFromId, data);
+//     }
+//   },
+// );
 
 // Simulate data updates for each token
 // setInterval(() => {
@@ -60,6 +60,71 @@ jobManagerWs.on(
 //     }
 //   }
 // }, 2000); // Every 2 seconds
+
+async function blockParser() {
+  let currentBlock = await provider.getBlockNumber();
+
+  for (;;) {
+    const latestBlock = await provider.getBlockNumber();
+    if (currentBlock < latestBlock) {
+      const allLogs = await provider.getLogs({
+        fromBlock: currentBlock,
+        toBlock: currentBlock,
+      });
+      const jobManangerLogs = allLogs.filter(
+        (a) =>
+          a.address.toLowerCase() === jobManagerContractAddress.toLowerCase(),
+      );
+      console.log({
+        currentBlock,
+        latestBlock,
+        jobManangerLogs: jobManangerLogs.length,
+      });
+
+      const jobManagerInterface = JobManager__factory.createInterface();
+      const executionEvents = jobManangerLogs
+        .map((a) => {
+          return {
+            parsedLog: jobManagerInterface.parseLog(a as any),
+            log: a,
+          };
+        })
+        .filter((a) => a.parsedLog && a.parsedLog.name === "ExecutionComplete");
+
+      for (let index = 0; index < executionEvents.length; index++) {
+        const executeEvent = executionEvents[index];
+        const jobId = new BigNumber(executeEvent.parsedLog?.args[0]).toNumber();
+        const executionId = new BigNumber(
+          executeEvent.parsedLog?.args[1],
+        ).toNumber();
+        console.log({ jobId, executionId });
+
+        const tokenNameFromId = tokenFeedManager.getTokenNameById(jobId);
+        if (tokenNameFromId) {
+          const executionData = await jobManager.exeuctionData(
+            jobId,
+            executionId,
+          );
+          const blockNumber = executeEvent.log.blockNumber;
+          const transactionHash = executeEvent?.log?.transactionHash;
+          const priceToDisplay = new BigNumber(executionData).toFixed(0);
+
+          const data = `BlockNumber: ${blockNumber} , TransactionHash: ${transactionHash} , Exec No: ${executionId}, Price: ${priceToDisplay}`;
+          dataStream.updateData(jobId, tokenNameFromId, data);
+        }
+      }
+
+      currentBlock++;
+    } else {
+      console.log("waiting for new blocks");
+      await induceDelay();
+    }
+  }
+}
+
+async function induceDelay(ms: number = 5000): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 app.get("/feed/:token_name", (req, res) => {
   const tokenName = req.params.token_name;
@@ -133,4 +198,5 @@ app.get("/:token_name", (req, res) => {
 
 app.listen(port, "0.0.0.0", () => {
   console.log(`Server running at http://0.0.0.0:${port}`);
+  blockParser().then(console.log);
 });
