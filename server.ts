@@ -44,7 +44,7 @@ jobManagerWs.on(
       const transactionHash = (executeEvent as any)?.log?.transactionHash;
       const priceToDisplay = new BigNumber(executionData).toFixed(0);
 
-      const data = `BlockNumber: ${blockNumber} , TransactionHash: ${transactionHash} , Price: ${priceToDisplay}`;
+      const data = `BlockNumber: ${blockNumber} , TransactionHash: ${transactionHash} , Exec No: ${executionId}, Price: ${priceToDisplay}`;
       dataStream.updateData(jobIdNumber, tokenNameFromId, data);
     }
   },
