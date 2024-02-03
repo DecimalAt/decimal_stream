@@ -87,11 +87,27 @@ app.get("/feed/:token_name", (req, res) => {
   dataStream.on("data", onDataUpdate);
 
   req.on("close", () => {
-    dataStream.off("data", onDataUpdate);
+    dataStream.off("data", () => {
+      res.end();
+    });
+  });
+
+  req.on("end", () => {
+    dataStream.off("data", () => {
+      res.end();
+    });
   });
 
   req.on("error", () => {
-    dataStream.off("data", onDataUpdate);
+    dataStream.off("data", () => {
+      res.end();
+    });
+  });
+
+  req.on("pause", () => {
+    dataStream.off("data", () => {
+      res.end();
+    });
   });
 });
 
