@@ -18,27 +18,39 @@
   <body>
     <div id="chat"></div>
     <script>
+      let eventSource;
       const tokenName = "/* token_name */";
       const chat = document.getElementById("chat");
 
-      // Create an EventSource
-      const eventSource = new EventSource(`/feed/${tokenName}`);
+      function connectEventSource() {
+        eventSource = new EventSource(`/feed/${tokenName}`);
 
-      eventSource.onmessage = function (event) {
-        // Append new data to the chat div
-        const newLine = document.createElement("p");
-        newLine.textContent = event.data;
-        chat.appendChild(newLine);
+        eventSource.onmessage = function (event) {
+          // Append new data to the chat div
+          const newLine = document.createElement("p");
+          newLine.textContent = event.data;
+          chat.appendChild(newLine);
 
-        // Auto-scroll to the bottom
-        chat.scrollTop = chat.scrollHeight;
-      };
+          // Auto-scroll to the bottom
+          chat.scrollTop = chat.scrollHeight;
+        };
 
-      eventSource.onerror = function () {
-        console.error("EventSource failed.");
-        // Close the connection
-        eventSource.close();
-      };
+        eventSource.onerror = function (error) {
+          console.error("EventSource failed.", error);
+
+          // Attempt to reconnect after 5 seconds
+          setTimeout(function () {
+            console.log("Attempting to reconnect...");
+            connectEventSource();
+          }, 5000);
+
+          // Close the current connection
+          eventSource.close();
+        };
+      }
+
+      // Initial connection
+      connectEventSource();
     </script>
   </body>
 </html>
